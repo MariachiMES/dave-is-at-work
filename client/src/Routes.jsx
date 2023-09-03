@@ -1,5 +1,6 @@
 import {useContext} from 'react'
 import Register from './components/Register'
+import Chat from './components/Chat'
 import { UserContext } from './components/UserContext'
 
 export default function Routes() {
@@ -7,7 +8,7 @@ export default function Routes() {
     if(username)
   return (
 
-    "logged in"
+    <Chat/>
   )
   return (
     <div>
