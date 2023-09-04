@@ -4,6 +4,7 @@ require('dotenv').config();
 const jwtSecret = process.env.JWT_SECRET;
 const jwt = require('jsonwebtoken');
 const User = require('./models/User');
+const Message = require('./models/Message');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -14,11 +15,21 @@ const ws = require('ws');
 mongoose.connect(process.env.MONGODB_URL);
 
 const saltRounds = bcrypt.genSaltSync(10);
+//API TEST
 
-app.get('/test', (req, res) => {
-	console.log('testing testing one two');
-	res.json('ok, this works');
-});
+async function getMessageData(req) {
+	return new Promise((resolve, reject) => {
+		const token = req.cookies?.token;
+		if (token) {
+			jwt.verify(token, jwtSecret, {}, (err, userData) => {
+				if (err) throw err;
+				resolve(userData);
+			});
+		} else {
+			reject('no token');
+		}
+	});
+}
 
 app.use(express.json());
 
@@ -40,11 +51,16 @@ app.get('/profile', (req, res) => {
 			if (err) throw err;
 
 			res.json(userData);
-			console.log('jwt token verified');
 		});
 	} else {
 		res.status(403).json('no token');
 	}
+});
+
+app.get('/users', async (req, res) => {
+	const allUsers = await User.find({}, { '_id:': 1, username: 1 });
+	res.json(allUsers);
+	console.log('ALL THE USERS! ', allUsers);
 });
 
 //LOGIN
@@ -112,14 +128,63 @@ app.post('/register', async (req, res) => {
 		}
 	}
 });
+//Logout
+app.post('/logout', (req, res) => {
+	res
+		.clearCookie('token', { sameSite: 'none', secure: true })
+		.status(200)
+		.json('ok');
+});
+
+app.get('/messages/:id', async (req, res) => {
+	const { id } = req.params;
+	console.log('userId: ', id);
+	const userData = await getMessageData(req);
+	console.log('userData: ', userData);
+	const ourUserId = userData.userId;
+	console.log('our userId: ', ourUserId);
+	const messages = await Message.find({
+		sender: { $in: [id, ourUserId] },
+		recipient: { $in: [id, ourUserId] },
+	}).sort({ createdAt: 1 });
+	res.json(messages);
+	console.log(messages, 'these are all the messages');
+});
 
 //WEBSOCKET SERVER
 
 const server = app.listen(4040);
 
 const wss = new ws.WebSocketServer({ server });
+
 wss.on('connection', (connection, req) => {
+	connection.isAlive = true;
+	connection.timer = setInterval(() => {
+		connection.ping();
+		connection.deathTimer = setTimeout(() => {
+			connection.isAlive = false;
+			connection.terminate();
+			sendOnlineUsers();
+			console.log('connection dead');
+		}, 1000);
+	}, 5000);
+	connection.on('pong', () => {
+		clearTimeout(connection.deathTimer);
+	});
 	console.log('websocket connected');
+
+	function sendOnlineUsers() {
+		[...wss.clients].forEach((client) => {
+			client.send(
+				JSON.stringify({
+					online: [...wss.clients].map((c) => ({
+						userId: c.userId,
+						username: c.username,
+					})),
+				})
+			);
+		});
+	}
 	//READS USERNAME AND COOKIE FOR CURRENT CONNECTION
 	const cookies = req.headers.cookie;
 	if (cookies) {
@@ -139,15 +204,35 @@ wss.on('connection', (connection, req) => {
 		}
 	}
 
-	//NOTIFIES WHEN USER CONNECTS
-	[...wss.clients].forEach((client) => {
-		client.send(
-			JSON.stringify({
-				online: [...wss.clients].map((c) => ({
-					userId: c.userId,
-					username: c.username,
-				})),
-			})
-		);
+	//HANDLE MESSAGING
+
+	connection.on('message', async (message) => {
+		const messageData = JSON.parse(message.toString());
+		console.log(messageData);
+		const { recipient, text } = messageData;
+		if (recipient && text) {
+			const newMessage = await Message.create({
+				sender: connection.userId,
+				recipient,
+				text,
+			});
+			const recipients = [...wss.clients].filter((c) => c.userId === recipient);
+			recipients.forEach((c) =>
+				c.send(
+					JSON.stringify({
+						text,
+						sender: connection.userId,
+						recipient,
+						_id: newMessage._id,
+					})
+				)
+			);
+		}
 	});
+	//NOTIFIES WHEN USER CONNECTS
+	sendOnlineUsers();
+});
+
+wss.on('close', () => {
+	console.log('disconnected');
 });
