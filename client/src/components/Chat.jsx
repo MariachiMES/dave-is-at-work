@@ -20,20 +20,16 @@ export default function Chat() {
         usersArray.forEach(({userId, username}) => {
             users[userId] = username
         })
-        console.log(users)
         setOnlineUsers(users)
     }
     function handleMessage(e){
-        console.log('newMessage', e)
         const messageData = JSON.parse(e.data)
-        console.log(messageData, "this is the message data")
         if('online' in messageData) {
             showOnlineUsers(messageData.online)
         }
     }
     function selectContact (userId) {
         setSelectedUser(userId)
-        console.log('clicked')
     }
   return (
     <div className = "flex h-screen">
@@ -54,7 +50,9 @@ export default function Chat() {
                 messages with selected person
             </div>
             <div className = "flex gap-2 ">
-            <input type="text" 
+            <input 
+            id = "stff" 
+            name="message" type="text" 
             placeholder = "type your message here" 
             className = "bg-white flex-grow border p-2 rounded-sm"/>
             <button className = "bg-blue-500 p-2 text-white rounded-sm">Send</button>

@@ -13,8 +13,7 @@ export default function Routes() {
   return (
     <div>
         <Register/>
-        <h2>not logged in</h2>
-        {console.log("not logged in")}
+       
     </div>
     
   )

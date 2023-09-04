@@ -113,8 +113,6 @@ const server = app.listen(4040)
 const wss = new ws.WebSocketServer({server})
 wss.on('connection', (connection, req) =>{
     console.log('websocket connected')
-    connection.send('WELCOME TO THE CHAT!!')
-    console.log(req.headers)
     const cookies = req.headers.cookie
     if(cookies) {
         const tokenCookiesString = cookies.split(";").find(str => str.startsWith('token='))
@@ -122,7 +120,6 @@ wss.on('connection', (connection, req) =>{
             const token = tokenCookiesString.split('=')[1]
             jwt.verify(token, jwtSecret, {}, (err, userData)=>{
                 if(err) throw err
-                console.log(userData)
                 const {userId, username} = userData
                 connection.userId = userId
                 connection.username = username 
