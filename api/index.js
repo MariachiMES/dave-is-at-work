@@ -159,15 +159,18 @@ const wss = new ws.WebSocketServer({ server });
 
 wss.on('connection', (connection, req) => {
 	connection.isAlive = true;
+
 	connection.timer = setInterval(() => {
 		connection.ping();
 		connection.deathTimer = setTimeout(() => {
 			connection.isAlive = false;
+			clearInterval(connection.timer);
 			connection.terminate();
 			sendOnlineUsers();
-			console.log('connection dead');
+			console.log('dead');
 		}, 1000);
 	}, 5000);
+
 	connection.on('pong', () => {
 		clearTimeout(connection.deathTimer);
 	});
